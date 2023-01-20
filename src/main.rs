@@ -1,26 +1,44 @@
 #![no_std] // don't link with standar  library
 #![no_main] // disable Rust-level entry points
 
-use core::panic::PanicInfo;
+#![feature(custom_test_frameworks)]
+#![test_runner(winter_os::test_runner)]
+#![reexport_test_harness_main = "test_main"]
 
-static HELLO: &[u8] = b"Hello world!";
+use core::panic::PanicInfo;
+use winter_os::println;
 
 #[no_mangle] // don't mangle this function (it's the entry point)
 pub extern "C" fn _start() -> ! {
-    let vga_buffer = 0xb8000 as *mut u8;
+    println!("Hello World{}", "!");
 
-    for(i, &byte) in HELLO.iter().enumerate() {
-        unsafe {
-            *vga_buffer.offset(i as isize * 2) = byte;
-            *vga_buffer.offset(i as isize * 2 + 1) = 0xb;
-        }
-    }
+    winter_os::init();
 
+    x86_64::instructions::interrupts::int3();
+
+    #[cfg(test)]
+    test_main();
+
+    println!("Didn't crash c:");
     loop {}
 }
 
 /// This is called on panic.
+#[cfg(not(test))]
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
+fn panic(info: &PanicInfo) -> ! {
+    println!("{}", info);
+
     loop {}
+}
+
+#[cfg(test)]
+#[panic_handler]
+fn panic(info: &PanicInfo) -> ! {
+    winter_os::test_panic_handler(info)
+}
+
+#[test_case]
+fn trivial_assertion() {
+    assert_eq!(1, 1);
 }
